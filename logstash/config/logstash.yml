@@ -1,0 +1,5 @@
+http.host: "0.0.0.0"
+xpack.monitoring.enabled: false
+
+# Uncomment for dead letter queue in more advanced setups
+# dead_letter_queue.enable: true
