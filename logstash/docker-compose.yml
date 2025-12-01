@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: es-single-node
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      # PoC: disable security (no auth). For prod, enable xpack.security.
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - elk
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      - POSTGRES_DB=mydb
+      - POSTGRES_USER=dbuser
+      - POSTGRES_PASSWORD=dbpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - elk
+
+  logstash:
+    build:
+      context: ./logstash
+      dockerfile: Dockerfile
+    container_name: logstash
+    environment:
+      - DB_USER=dbuser
+      - DB_PASSWORD=dbpassword
+      - ENVIRONMENT=dev
+    volumes:
+      # Persist last_run metadata & any state
+      - logstash-state:/usr/share/logstash
+    depends_on:
+      - postgres
+      - elasticsearch
+    ports:
+      - "5044:5044"  # future beats input if needed
+      - "9600:9600"  # Logstash monitoring API
+    networks:
+      - elk
+
+volumes:
+  es-data:
+  pg-data:
+  logstash-state:
+
+networks:
+  elk:
+    driver: bridge
+
